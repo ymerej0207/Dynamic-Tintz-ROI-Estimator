@@ -71,7 +71,7 @@
 
   function nextProposalNumber(){ const k='dt:proposalCounter'; const n=parseInt(localStorage.getItem(k)||'1001',10); localStorage.setItem(k, String(n+1)); return n; }
 
-  let jsPDFRef=null; try{ jsPDFRef = window.jspdf.jsPDF; }catch(e){}
+  let jsPDFRef=null; try{ jsPDFRef = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF; }catch(e){}
   document.getElementById("btnGenerate").onclick = function(){ 
     if(!jsPDFRef){ alert("PDF engine unavailable. Load once online to cache, or use Print/Save as PDF."); return; }
     const doc = new jsPDFRef({unit:'pt',format:'a4'});
@@ -118,11 +118,13 @@
     const footer = 'Dynamic Tintz — Veteran Owned & Operated  •  469-840-4008  •  dynamictintzllc@gmail.com  •  Licensed & Insured  •  Serving the DFW Metroplex & Surrounding Areas';
     doc.text(footer, M, y); y+=14;
 
+    function imgFmt(dataURL){ return (dataURL && dataURL.startsWith('data:image/png')) ? 'PNG' : 'JPEG'; }
+
     function finish(before, after){ 
       let imgY = y+6;
       const imgW = (W - M*2 - 20)/2, imgH = 140;
-      if(before){ try{ doc.addImage(before,'JPEG', M, imgY, imgW, imgH); doc.text('Before', M, imgY+imgH+12); }catch(e){} }
-      if(after) { try{ doc.addImage(after,'JPEG', M+imgW+20, imgY, imgW, imgH); doc.text('After', M+imgW+20, imgY+imgH+12); }catch(e){} }
+      if(before){ try{ doc.addImage(before, imgFmt(before), M, imgY, imgW, imgH); doc.text('Before', M, imgY+imgH+12); }catch(e){} }
+      if(after) { try{ doc.addImage(after, imgFmt(after), M+imgW+20, imgY, imgW, imgH); doc.text('After', M+imgW+20, imgY+imgH+12); }catch(e){} }
       imgY += (imgH + 26);
 
       doc.setDrawColor(0,0,0); doc.setLineWidth(0.6);
@@ -147,7 +149,7 @@
       ].join('\\n\\n');
       doc.text(doc.splitTextToSize(notes, W-M*2), M, 80);
 
-      const blob = doc.output('blob'); const url2 = URL.createObjectURL(blob); window.open(url2,'_blank'); setTimeout(()=>URL.revokeObjectURL(url2),15000);
+      const filename = `Dynamic_Tintz_Proposal_${proposalNo}.pdf`; try { doc.save(filename); } catch(e) { const blob = doc.output('blob'); const url2 = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url2; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url2),15000); }
     }
 
     const bFile = document.getElementById('beforeImg').files[0];

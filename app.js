@@ -83,14 +83,16 @@
     y = ensureSpace(doc, y, 40, M, H);
     doc.setFillColor(0,229,234); doc.roundedRect(M,y,W-M*2,32,8,8,'F');
     doc.setFont('helvetica','bold'); doc.setTextColor(0,0,0); doc.setFontSize(14);
-    const ttl = 'Energy Film ROI Proposal'; doc.text(ttl, (W-doc.getTextWidth(ttl))/2, y+22);
+    const ttl = 'Energy Film ROI Proposal';
+    const SAFE_WIDTH = W - M*2 - 8;
+    doc.text(ttl, (W-doc.getTextWidth(ttl))/2, y+22);
     const proposalNo = nextProposalNumber(); const dateStr = new Date().toLocaleDateString();
     doc.setFont('helvetica',''); doc.setFontSize(10); doc.setTextColor(90,90,90);
     doc.text('Proposal #: '+proposalNo, M, y+22); doc.text('Date: '+dateStr, W-M-100, y+22, {align:'right'}); y+=40;
 
     // Client / Site wrapped
     doc.setFont('helvetica',''); doc.setFontSize(11); doc.setTextColor(30,30,30);
-    const infoW = W - M*2;
+    const infoW = SAFE_WIDTH;
     const c1 = 'Client: ' + (document.getElementById('clientName').value||'—');
     const c2 = 'Site: ' + (document.getElementById('clientAddr').value||'—');
     const lines1 = doc.splitTextToSize(c1, infoW);
@@ -101,10 +103,17 @@
 
     // Film line wrapped
     const selFilm = elFilm.value; const spec = FILM_SPECS[selFilm];
-    const specLine = `Film: ${selFilm} • VLT ${spec.VLT}% • TSER ${spec.TSER}% • UV >${spec.UV}% • Glare ↓ ${spec.Glare}%`;
-    const specWrapped = doc.splitTextToSize(specLine, infoW);
-    y = ensureSpace(doc, y, specWrapped.length*14, M, H);
-    doc.text(specWrapped, M, y); y += specWrapped.length*14 + 6;
+    const filmLines = [
+      `Film: ${selFilm}`,
+      `VLT ${spec.VLT}%   TSER ${spec.TSER}%   UV >${spec.UV}%   Glare ↓ ${spec.Glare}%`
+    ];
+    filmLines.forEach(line => {
+      const wrapped = doc.splitTextToSize(line, infoW);
+      y = ensureSpace(doc, y, wrapped.length*14, M, H);
+      doc.text(wrapped, M, y, {maxWidth: infoW});
+      y += wrapped.length*14 + 2;
+    });
+    y += 4;
 
     // KPIs two-column, wrapped values
     const glass = document.getElementById('kpiGlass').textContent;
@@ -112,7 +121,7 @@
     const save  = document.getElementById('kpiSave').textContent;
     const pay   = document.getElementById('kpiPay').textContent;
     const net   = document.getElementById('kpiNet').textContent;
-    function row(k,v,x){ y = ensureSpace(doc, y, 18, M, H); doc.setTextColor(110,110,110); doc.text(k, x, y); doc.setTextColor(20,20,20); doc.setFont('helvetica','bold'); doc.text(String(v), x+190, y, {maxWidth: Math.max(120,(W/2 - M - 200))}); doc.setFont('helvetica',''); y += 16; }
+    function row(k,v,x){ y = ensureSpace(doc, y, 18, M, H); doc.setTextColor(110,110,110); doc.text(k, x, y); doc.setTextColor(20,20,20); doc.setFont('helvetica','bold'); doc.text(String(v), x+190, y, {maxWidth: Math.max(120,(W/2 - M - 220))}); doc.setFont('helvetica',''); y += 16; }
     const left=M, right=W/2+8; doc.setFontSize(11);
     row('Estimated Glass Area', glass, left); row('Installed Cost', cost, left);
     const yHold = y-32; y=yHold; row('Expected Annual Savings', save, right); row('Simple Payback', pay, right); y = Math.max(y, yHold+40)+4; row('5-Year Net', net, left);
@@ -129,7 +138,8 @@
     if (url && window.MinQR){ const canvas = window.MinQR(url, 120); const dataURL = canvas.toDataURL('image/png'); y = ensureSpace(doc, y, 120, M, H); try{ doc.addImage(dataURL, 'PNG', W-M-120, y-6, 100, 100); }catch(e){} doc.setTextColor(110,110,110); doc.setFontSize(10); doc.text('Scan to schedule', W-M-120, y+100+12); }
     doc.setTextColor(80,80,80); doc.setFontSize(10);
     const footer = 'Dynamic Tintz — Veteran Owned & Operated  •  469-840-4008  •  dynamictintzllc@gmail.com  •  Licensed & Insured  •  Serving the DFW Metroplex & Surrounding Areas';
-    doc.text(footer, M, y); y += 14;
+    const footWrap = doc.splitTextToSize(footer, SAFE_WIDTH);
+    doc.text(footWrap, M, y, {maxWidth: SAFE_WIDTH}); y += footWrap.length*12;
 
     // Before/After block
     async function finish(before, after){
@@ -149,7 +159,9 @@
 
       // Spec sheet page (centered fit)
       const sel = elFilm.value; const sheet = SPEC_IMG[sel];
-      if(sheet) { doc.addPage(); doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.text(sel + ' — Manufacturer Spec Sheet', M, 60); try{ const boxW=W-M*2, boxH=H-120; addImageFitted(doc, sheet, M, 80, boxW, boxH, true); }catch(e){} }
+      if(sheet) { doc.addPage(); doc.setFont('helvetica','bold'); doc.setFontSize(12); const specTitle = sel + ' — Manufacturer Spec Sheet';
+      const specWrap = doc.splitTextToSize(specTitle, SAFE_WIDTH);
+      doc.text(specWrap, M, 60, {maxWidth: SAFE_WIDTH}); try{ const boxW=W-M*2, boxH=H-120; addImageFitted(doc, sheet, M, 80, boxW, boxH, true); }catch(e){} }
 
       const filename = `Dynamic_Tintz_Proposal_${proposalNo}.pdf`;
       try{ doc.save(filename); }catch(e){ const blob = doc.output('blob'); const url2 = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url2; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url2),15000); }

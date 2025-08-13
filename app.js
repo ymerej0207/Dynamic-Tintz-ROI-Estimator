@@ -48,7 +48,7 @@
       <div><b>Payback:</b> ${(annualSavings>0 ? paybackYears.toFixed(1) : "–")} yrs</div>
       <div><b>5-Year Net:</b> ${money0(fiveYearNet)}</div>
       <div class="divider"></div>
-      <div style="color:#6b7280;">Estimates are directional. Final ROI depends on verified glass area, film specification, installation conditions, and actual utility rates.</div>
+      <div style="opacity:.85;">Estimates are directional. Final ROI depends on verified glass area, film specification, installation conditions, and actual utility rates.</div>
     `;
   }
 
@@ -67,8 +67,8 @@
       S.glassSqftCustom = Math.max(0, +$("glassSqftCustom").value || 0);
       $("hvacPerSfYr").style.display = S.modeHVAC === "perSf" ? "block" : "none";
       $("annualHvacCustom").style.display = S.modeHVAC === "custom" ? "block" : "none";
-      $("ratioBlock").style.display = S.modeGlass === "ratio" ? "block" : "none";
-      $("customBlock").style.display = S.modeGlass === "custom" ? "block" : "none";
+      document.getElementById("ratioBlock").style.display = S.modeGlass === "ratio" ? "block" : "none";
+      document.getElementById("customBlock").style.display = S.modeGlass === "custom" ? "block" : "none";
       compute();
       statusEl.textContent = "Status: Ready";
     };
@@ -95,7 +95,6 @@
   $("btnDelete").onclick = () => { const name = prompt("Delete which scenario?"); if (!name) return; const m = loadAll(); if (!m[name]) return statusEl.textContent = "Status: Scenario not found"; delete m[name]; saveAll(m); statusEl.textContent = "Status: Deleted " + name; };
   $("btnList").onclick = () => { const keys = Object.keys(loadAll()); alert(keys.length ? "Saved scenarios:\n\n" + keys.join("\n") : "No saved scenarios yet."); };
 
-  // Load jsPDF via service worker cache (first online visit)
   let jsPDFRef = null;
   (function loadJsPDF(){
     const s = document.createElement("script");
@@ -107,10 +106,10 @@
   })();
 
   $("btnGenerate").onclick = () => {
-    if (!jsPDFRef) { alert("PDF engine unavailable offline. Use 'Print / Save as PDF' instead."); return; }
+    if (!jsPDFRef) { alert("PDF engine unavailable offline (first run). Use 'Print / Save as PDF' once, or open online once to cache it."); return; }
     const doc = new jsPDFRef({ unit: "pt", format: "a4" });
     const W = doc.internal.pageSize.getWidth(); const M = 40; let y = 48;
-    try { doc.addImage(document.getElementById("logo").src, "PNG", (W-160)/2, y, 160, 56); y += 70; } catch (e){}
+    try { doc.addImage(document.getElementById("logo").src, "PNG", (W-200)/2, y, 200, 70); y += 84; } catch (e){}
     doc.setDrawColor(0,229,234); doc.setFillColor(0,229,234); doc.roundedRect(M, y, W - M*2, 36, 8, 8, "F");
     doc.setTextColor(0,0,0); doc.setFontSize(14); doc.setFont("helvetica","bold"); const title = "Energy Film ROI Proposal"; const tw = doc.getTextWidth(title); doc.text(title, (W - tw)/2, y+24); y += 56;
     const glassSqft = S.modeGlass === "custom" && S.glassSqftCustom > 0 ? S.glassSqftCustom : Math.round(S.buildingSqft * S.glassRatio);

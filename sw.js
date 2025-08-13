@@ -1,4 +1,4 @@
-const CACHE = "dt-roi-v1";
+const CACHE = "dt-roi-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -23,11 +23,9 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
-  // Cache-first for same-origin and known CDN assets
   if (url.origin === location.origin || ASSETS.includes(url.href)) {
     e.respondWith(
       caches.match(e.request).then(resp => resp || fetch(e.request).then(r => {
-        // Stash a copy
         const copy = r.clone();
         caches.open(CACHE).then(c => c.put(e.request, copy));
         return r;

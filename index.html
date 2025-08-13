@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dynamic Tintz — Energy Film ROI Estimator (PWA)</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#00E5EA">
+<!-- iOS PWA meta -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+
+<style>
+  :root { --brand: #00E5EA; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, Arial, sans-serif; background:#f8fafc; color:#111827; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .card { background:#fff; border:1px solid #f1f5f9; border-radius:16px; padding:16px; }
+  .kpi-card { border:1px solid #e5e7eb; border-radius:12px; padding:12px; margin-bottom:8px; }
+  .label { font-size:12px; font-weight:600; margin-bottom:6px; }
+  .input { width:100%; padding:8px 10px; border:1px solid #e5e7eb; border-radius:8px; }
+  .btn { padding:10px 14px; border-radius:16px; border:1px solid #e5e7eb; background:#fff; color:#111827; cursor:pointer; }
+  .btn.primary { background:var(--brand); color:#fff; border:none; }
+  .sub { font-size:12px; color:#6b7280; }
+  .status { font-size:12px; color:#475569; margin: 8px 0 12px; }
+  .header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+  .brand { display:flex; align-items:center; gap:12px; }
+  .brand-name { font-size:22px; font-weight:700; color:var(--brand); }
+  .muted { color:#64748b; }
+  .divider { height:1px; background:#e5e7eb; margin:10px 0; }
+  @media print {
+    body { background:#fff; }
+    .no-print { display:none !important; }
+    .card, .kpi-card { border-color:#e5e7eb; }
+    .wrap { max-width: 800px; }
+    .row { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header no-print">
+    <div class="brand">
+      <img id="logo" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AApMBgQ1A9KIAAAAASUVORK5CYII=" alt="logo" style="height:40px;width:auto;border-radius:6px;background:#000" />
+      <div>
+        <div class="brand-name">Dynamic Tintz — Residential/Commercial Tinting</div>
+        <div class="sub">Energy Film ROI Estimator • Anna, Texas</div>
+      </div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button id="btnGenerate" class="btn primary">Generate Proposal (PDF)</button>
+      <button id="btnPrint" class="btn">Print / Save as PDF (Offline)</button>
+    </div>
+  </div>
+
+  <div id="status" class="status no-print">Status: Ready</div>
+
+  <div class="card no-print" style="margin-bottom:12px;">
+    <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+      <div style="flex:1">
+        <div class="label">Scenario name</div>
+        <input id="scenarioName" class="input" placeholder="e.g., 123 Main — 25% savings" />
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button id="btnSave" class="btn primary">Save</button>
+        <button id="btnLoad" class="btn">Load</button>
+        <button id="btnDelete" class="btn">Delete</button>
+        <button id="btnList" class="btn">List</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <div class="label">Brand name</div>
+      <input id="brandName" class="input" value="Dynamic Tintz — Residential/Commercial Tinting" />
+      <div style="height:8px"></div>
+      <div class="label">Primary color</div>
+      <input id="brandColor" class="input" type="color" value="#00E5EA" />
+    </div>
+
+    <div class="card">
+      <div class="label">Building square footage</div>
+      <input id="buildingSqft" class="input" type="number" min="1500" max="50000" step="250" value="5000" />
+      <div style="height:8px"></div>
+      <div class="label">Installed rate ($/sf)</div>
+      <input id="ratePerSf" class="input" type="number" min="1" step="0.25" value="6.5" />
+    </div>
+
+    <div class="card">
+      <div class="label">Savings (%)</div>
+      <input id="savingsPct" class="input" type="number" min="0.1" max="0.5" step="0.01" value="0.25" />
+      <div style="height:8px"></div>
+      <div class="label">HVAC baseline</div>
+      <div style="display:flex; gap:8px; margin-bottom:8px;">
+        <label><input type="radio" name="modeHVAC" value="perSf" checked> $/sf/yr</label>
+        <label><input type="radio" name="modeHVAC" value="custom"> Total ($)</label>
+      </div>
+      <input id="hvacPerSfYr" class="input" type="number" step="0.1" value="2.5" />
+      <input id="annualHvacCustom" class="input" type="number" step="100" value="15000" style="display:none;margin-top:8px;" />
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:12px;">
+    <div class="card">
+      <div class="label">Glass area model</div>
+      <div style="display:flex; gap:8px; margin-bottom:8px;">
+        <label><input type="radio" name="modeGlass" value="ratio" checked> Estimate via glass ratio</label>
+        <label><input type="radio" name="modeGlass" value="custom"> Enter glass sq ft</label>
+      </div>
+      <div id="ratioBlock">
+        <div class="label">Estimated glass ratio</div>
+        <input id="glassRatio" class="input" type="number" step="0.01" min="0.05" max="0.6" value="0.2" />
+      </div>
+      <div id="customBlock" style="display:none;">
+        <div class="label">Glass square footage</div>
+        <input id="glassSqftCustom" class="input" type="number" min="200" step="50" value="0" />
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sub" style="text-transform:uppercase; margin-bottom:6px;">KPIs</div>
+      <div class="kpi-card">
+        <div class="sub">Estimated Glass Area</div>
+        <div id="kpiGlassArea" style="font-size:18px;font-weight:700;">–</div>
+        <div id="kpiGlassSub" class="sub"></div>
+      </div>
+      <div class="kpi-card">
+        <div class="sub">Installed Cost</div>
+        <div id="kpiInstalled" style="font-size:18px;font-weight:700;">–</div>
+        <div class="sub">@ <span id="kpiRate">$6.50</span>/sf</div>
+      </div>
+      <div class="kpi-card">
+        <div class="sub">Annual Savings</div>
+        <div id="kpiSavings" style="font-size:18px;font-weight:700;">–</div>
+        <div class="sub"><span id="kpiSavingsPct">25%</span> of HVAC spend</div>
+      </div>
+      <div class="kpi-card">
+        <div class="sub">Payback</div>
+        <div id="kpiPayback" style="font-size:18px;font-weight:700;">–</div>
+        <div class="sub">5‑yr net: <span id="kpiFiveYear">–</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sub" style="text-transform:uppercase; margin-bottom:6px;">How to export</div>
+      <ol class="muted" style="font-size:13px; line-height:1.4; padding-left:16px;">
+        <li>Tap <b>Generate Proposal</b> (works online via jsPDF).</li>
+        <li>Offline: tap <b>Print / Save as PDF</b>, then Share → Save to Files.</li>
+      </ol>
+      <div class="muted" style="margin-top:12px;">PDF engine: <span id="pdfStatus">Checking…</span></div>
+    </div>
+  </div>
+
+  <div id="printArea" style="background:#fff;color:#111827;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-top:16px;">
+    <div style="text-align:center;">
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AApMBgQ1A9KIAAAAASUVORK5CYII=" alt="logo" style="height:56px;width:auto;border-radius:8px;background:#000" />
+      <div style="margin-top:8px;font-weight:700;">Energy Film ROI Proposal</div>
+    </div>
+    <div class="divider"></div>
+    <div id="printContent" style="font-size:13px;line-height:1.5;"></div>
+  </div>
+
+</div>
+
+<script src="app.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(console.error);
+    });
+  }
+</script>
+</body>
+</html>

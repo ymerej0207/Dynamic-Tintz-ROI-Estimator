@@ -72,6 +72,64 @@
   function nextProposalNumber(){ const k='dt:proposalCounter'; const n=parseInt(localStorage.getItem(k)||'1001',10); localStorage.setItem(k, String(n+1)); return n; }
 
   let jsPDFRef=null; try{ jsPDFRef = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF; }catch(e){}
+
+/** ---------- PDF Layout Utilities (crisp images, safe flow, no overlaps) ---------- */
+function mm(v){ return v * 2.83465; } // if we ever want mm, but we stay in pt
+function ensureSpace(doc, y, needed, margin, pageH){
+  if (y + needed > pageH - margin) {
+    doc.addPage();
+    return margin;
+  }
+  return y;
+}
+async function loadImageDims(dataURL){
+  return new Promise((res)=>{
+    if(!dataURL) return res(null);
+    const im = new Image();
+    im.onload = ()=> res({w: im.naturalWidth||im.width, h: im.naturalHeight||im.height});
+    im.src = dataURL;
+  });
+}
+function fitIntoBox(w, h, maxW, maxH){
+  if(!w || !h) return {w:maxW, h:maxH};
+  const r = Math.min(maxW / w, maxH / h);
+  return {w: w*r, h: h*r};
+}
+async function downscaleDataURL(dataURL, maxDim=1600){
+  if(!dataURL) return null;
+  // only process if it's huge
+  const dims = await loadImageDims(dataURL);
+  if(!dims) return dataURL;
+  const {w, h} = dims;
+  const big = Math.max(w,h);
+  if(big <= maxDim) return dataURL;
+  const scale = maxDim / big;
+  const tw = Math.round(w*scale), th = Math.round(h*scale);
+  const c = document.createElement('canvas'); c.width = tw; c.height = th;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  return await new Promise((resolve)=>{
+    const im = new Image();
+    im.onload = ()=>{ ctx.drawImage(im, 0, 0, tw, th); resolve(c.toDataURL('image/jpeg', 0.92)); };
+    im.src = dataURL;
+  });
+}
+function addImageFitted(doc, dataURL, x, y, maxW, maxH){
+  // jsPDF sometimes needs dimensions; we compute via temp image synchronously fallback
+  // Here we assume prior downscale ensured moderate size
+  try {
+    const props = doc.getImageProperties(dataURL);
+    const sz = fitIntoBox(props.width, props.height, maxW, maxH);
+    doc.addImage(dataURL, (dataURL.startsWith('data:image/png')?'PNG':'JPEG'), x, y, sz.w, sz.h, '', 'FAST');
+    return sz.h;
+  } catch(e){
+    // Fallback fixed box
+    doc.addImage(dataURL, (dataURL && dataURL.startsWith('data:image/png')?'PNG':'JPEG'), x, y, maxW, maxH, '', 'FAST');
+    return maxH;
+  }
+}
+
   document.getElementById("btnGenerate").onclick = function(){ 
     if(!jsPDFRef){ alert("PDF engine unavailable. Load once online to cache, or use Print/Save as PDF."); return; }
     const doc = new jsPDFRef({unit:'pt',format:'a4'});
@@ -86,10 +144,25 @@
 
     const spec = FILM_SPECS[document.getElementById('filmChoice').value];
     doc.setFont('helvetica',''); doc.setFontSize(11); doc.setTextColor(40,40,40);
-    doc.text('Client: ' + (document.getElementById('clientName').value||'—'), M, y); 
-    doc.text('Site: ' + (document.getElementById('clientAddr').value||'—'), W/2, y); y+=18;
-    doc.text('Film: ' + document.getElementById('filmChoice').value, M, y); 
-    doc.text(`VLT ${spec.VLT}%  •  TSER ${spec.TSER}%  •  UV >${spec.UV}%  •  Glare ↓ ${spec.Glare}%`, W/2, y); y+=18;
+    let leftW = (W - M*2) * 0.52;
+    const c1 = 'Client: ' + (document.getElementById('clientName').value||'—');
+    const c2 = 'Site: ' + (document.getElementById('clientAddr').value||'—');
+    let lines1 = doc.splitTextToSize(c1, leftW);
+    let lines2 = doc.splitTextToSize(c2, leftW);
+    const blockH = Math.max(lines1.length, lines2.length) * 14;
+    y = ensureSpace(doc, y, blockH, M, H);
+    doc.text(lines1, M, y);
+    doc.text(lines2, M + leftW + 12, y);
+    y += blockH + 4;
+    const f1 = 'Film: ' + document.getElementById('filmChoice').value;
+    const f2 = `VLT ${spec.VLT}%  •  TSER ${spec.TSER}%  •  UV >${spec.UV}%  •  Glare ↓ ${spec.Glare}%`;
+    let L1 = doc.splitTextToSize(f1, leftW);
+    let L2 = doc.splitTextToSize(f2, leftW);
+    const blockH2 = Math.max(L1.length, L2.length) * 14;
+    y = ensureSpace(doc, y, blockH2, M, H);
+    doc.text(L1, M, y);
+    doc.text(L2, M + leftW + 12, y);
+    y += blockH2 + 6;
 
     const glass = document.getElementById('kpiGlass').textContent;
     const cost = document.getElementById('kpiCost').textContent;
@@ -97,26 +170,30 @@
     const pay  = document.getElementById('kpiPay').textContent;
     const net  = document.getElementById('kpiNet').textContent;
 
-    function row(k,v,x){ doc.setTextColor(110,110,110); doc.text(k, x, y); doc.setTextColor(20,20,20); doc.setFont('helvetica','bold'); doc.text(v, x+180, y); doc.setFont('helvetica','normal'); y+=20; }
-    const left=M, right=W/2+10; doc.setFontSize(11);
+    function row(k,v,x){ y = ensureSpace(doc, y, 18, M, H); doc.setTextColor(110,110,110); doc.text(k, x, y); doc.setTextColor(20,20,20); doc.setFont('helvetica','bold'); doc.text(String(v), x+190, y, {maxWidth: (W/2 - M - 200)}); doc.setFont('helvetica','normal'); y+=16; }
+    const left=M, right=W/2+8; doc.setFontSize(11);
     row('Estimated Glass Area', glass, left);
     row('Installed Cost', cost, left);
-    const yt = y-40; y=yt;
+    const yHold = y-32; y=yHold;
     row('Expected Annual Savings', save, right);
-    row('Simple Payback', pay, right); y = Math.max(y, yt+40)+10;
-    row('5-Year Net', net, left); y+=6;
+    row('Simple Payback', pay, right);
+    y = Math.max(y, yHold+32) + 8;
+    row('5-Year Net', net, left); y+=2;
     doc.setDrawColor(229,231,235); doc.line(M,y,W-M,y); y+=12;
 
     doc.setFont('helvetica','bold'); doc.text('Performance Specs', M, y); y+=10; doc.setFont('helvetica','');
     const specs = [['Visible Light Transmission', spec.VLT+' %'], ['Total Solar Energy Rejected (TSER)', spec.TSER+' %'], ['Solar Heat Gain Coefficient (SHGC)', String(spec.SHGC)], ['Shading Coefficient', String(spec.SC)], ['UV Rejected', '>'+spec.UV+' %'], ['Glare Reduction', spec.Glare+' %'], ['Interior Reflectance', spec.VLR_Int+' %'], ['Exterior Reflectance', spec.VLR_Ext+' %'], ['Emissivity', String(spec.Emiss)], ['Winter Median U-Value', String(spec.U)]];
-    const col1=M, col2=M+320; specs.forEach(s=>{ doc.setTextColor(110,110,110); doc.text(s[0], col1, y); doc.setTextColor(20,20,20); doc.text(String(s[1]), col2, y); y+=16; });
-    y+=6; doc.setDrawColor(229,231,235); doc.line(M,y,W-M,y); y+=14;
+    const col1=M, col2=M+300, maxW= W - col2 - M;
+    specs.forEach(s=>{ y = ensureSpace(doc, y, 16, M, H); doc.setTextColor(110,110,110); const a = doc.splitTextToSize(s[0], col2-col1-12); doc.text(a, col1, y); doc.setTextColor(20,20,20); const b = doc.splitTextToSize(String(s[1]), maxW); doc.text(b, col2, y); y += Math.max(a.length, b.length)*12 + 4; });
+    y+=2; doc.setDrawColor(229,231,235); y = ensureSpace(doc, y, 12, M, H); doc.line(M,y,W-M,y); y+=12;
 
     const url = document.getElementById('brandURL').value || '';
-    if (url && window.MinQR) { const canvas = window.MinQR(url, 120); const dataURL = canvas.toDataURL('image/png'); try { doc.addImage(dataURL, 'PNG', W-M-120, y-6, 100, 100); } catch(e){} doc.setTextColor(110,110,110); doc.setFontSize(10); doc.text('Scan to schedule', W-M-120, y+100+12); }
+    if (url && window.MinQR) { const canvas = window.MinQR(url, 120); const dataURL = canvas.toDataURL('image/png'); try { y = ensureSpace(doc, y, 120, M, H); doc.addImage(dataURL, 'PNG', W-M-120, y-6, 100, 100); } catch(e){} doc.setTextColor(110,110,110); doc.setFontSize(10); doc.text('Scan to schedule', W-M-120, y+100+12); }
     doc.setTextColor(80,80,80); doc.setFontSize(10);
     const footer = 'Dynamic Tintz — Veteran Owned & Operated  •  469-840-4008  •  dynamictintzllc@gmail.com  •  Licensed & Insured  •  Serving the DFW Metroplex & Surrounding Areas';
-    doc.text(footer, M, y); y+=14;
+    const footLines = doc.splitTextToSize(footer, W - M*2 - 140);
+    y = ensureSpace(doc, y, footLines.length*12+6, M, H);
+    doc.text(footLines, M, y); y+= footLines.length*12 + 8;
 
     function imgFmt(dataURL){ return (dataURL && dataURL.startsWith('data:image/png')) ? 'PNG' : 'JPEG'; }
 

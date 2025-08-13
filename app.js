@@ -74,6 +74,37 @@
   let jsPDFRef=null; try{ jsPDFRef = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF; }catch(e){}
 
 /** ---------- PDF Layout Utilities (crisp images, safe flow, no overlaps) ---------- */
+function ensureSpace(doc, y, needed, margin, pageH){
+  if (y + needed > pageH - margin) { doc.addPage(); return margin; }
+  return y;
+}
+function loadImageDims(dataURL){ return new Promise((res)=>{ if(!dataURL) return res(null); const im=new Image(); im.onload=()=>res({w:im.naturalWidth||im.width,h:im.naturalHeight||im.height}); im.src=dataURL; }); }
+function fitIntoBox(w,h,maxW,maxH){ if(!w||!h) return {w:maxW,h:maxH}; const r=Math.min(maxW/w, maxH/h); return {w:w*r, h:h*r}; }
+async function downscaleDataURL(dataURL, maxDim=1800){
+  if(!dataURL) return null;
+  const dims = await loadImageDims(dataURL); if(!dims) return dataURL;
+  const {w,h}=dims, big=Math.max(w,h); if(big<=maxDim) return dataURL;
+  const scale=maxDim/big, tw=Math.round(w*scale), th=Math.round(h*scale);
+  const c=document.createElement('canvas'); c.width=tw; c.height=th; const ctx=c.getContext('2d');
+  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+  return await new Promise((resolve)=>{ const im=new Image(); im.onload=()=>{ ctx.drawImage(im,0,0,tw,th); resolve(c.toDataURL('image/jpeg',0.92)); }; im.src=dataURL; });
+}
+function addImageFitted(doc, dataURL, x, y, maxW, maxH, center=false){
+  try {
+    const props = doc.getImageProperties(dataURL);
+    const sz = fitIntoBox(props.width, props.height, maxW, maxH);
+    const fmt = (dataURL.startsWith('data:image/png')?'PNG':'JPEG');
+    let ox=x, oy=y; if(center){ ox = x + (maxW - sz.w)/2; oy = y + (maxH - sz.h)/2; }
+    doc.addImage(dataURL, fmt, ox, oy, sz.w, sz.h);   // no 'FAST' compression → sharper
+    return sz.h;
+  } catch(e){
+    const fmt = (dataURL && dataURL.startsWith('data:image/png')?'PNG':'JPEG');
+    doc.addImage(dataURL, fmt, x, y, maxW, maxH);
+    return maxH;
+  }
+}
+
+/** ---------- PDF Layout Utilities (crisp images, safe flow, no overlaps) ---------- */
 function mm(v){ return v * 2.83465; } // if we ever want mm, but we stay in pt
 function ensureSpace(doc, y, needed, margin, pageH){
   if (y + needed > pageH - margin) {

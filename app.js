@@ -85,6 +85,8 @@
     doc.setFont('helvetica','bold'); doc.setTextColor(0,0,0); doc.setFontSize(14);
     const ttl = 'Energy Film ROI Proposal';
     const SAFE_WIDTH = W - M*2 - 8;
+    const LINE_H = 14; const SECTION_GAP = 10;
+    const SAFE_WIDTH = W - M*2 - 8;
     doc.text(ttl, (W-doc.getTextWidth(ttl))/2, y+22);
     const proposalNo = nextProposalNumber(); const dateStr = new Date().toLocaleDateString();
     doc.setFont('helvetica',''); doc.setFontSize(10); doc.setTextColor(90,90,90);
@@ -121,17 +123,64 @@
     const save  = document.getElementById('kpiSave').textContent;
     const pay   = document.getElementById('kpiPay').textContent;
     const net   = document.getElementById('kpiNet').textContent;
-    function row(k,v,x){ y = ensureSpace(doc, y, 18, M, H); doc.setTextColor(110,110,110); doc.text(k, x, y); doc.setTextColor(20,20,20); doc.setFont('helvetica','bold'); doc.text(String(v), x+190, y, {maxWidth: Math.max(120,(W/2 - M - 220))}); doc.setFont('helvetica',''); y += 16; }
+    function row(k,v,x){ y = ensureSpace(doc, y, 18, M, H); doc.setTextColor(110,110,110); doc.text(k, x, y); doc.setTextColor(20,20,20); doc.setFont('helvetica','bold'); doc.text(String(v), x+190, y, {maxWidth: Math.max(120,(W/2 - M - 240))}); doc.setFont('helvetica',''); y += 16; }
     const left=M, right=W/2+8; doc.setFontSize(11);
     row('Estimated Glass Area', glass, left); row('Installed Cost', cost, left);
     const yHold = y-32; y=yHold; row('Expected Annual Savings', save, right); row('Simple Payback', pay, right); y = Math.max(y, yHold+40)+4; row('5-Year Net', net, left);
-    y += 6; doc.setDrawColor(229,231,235); doc.line(M,y,W-M,y); y += 12;
+    y += SECTION_GAP-4; doc.setDrawColor(229,231,235); doc.line(M,y,W-M,y); y += SECTION_GAP;
 
-    // Performance specs table (flow-safe)
-    doc.setFont('helvetica','bold'); doc.text('Performance Specs', M, y); y += 10; doc.setFont('helvetica','');
-    const specs = [['Visible Light Transmission', spec.VLT+' %'], ['Total Solar Energy Rejected (TSER)', spec.TSER+' %'], ['Solar Heat Gain Coefficient (SHGC)', String(spec.SHGC)], ['Shading Coefficient', String(spec.SC)], ['UV Rejected', '>'+spec.UV+' %'], ['Glare Reduction', spec.Glare+' %'], ['Interior Reflectance', spec.VLR_Int+' %'], ['Exterior Reflectance', spec.VLR_Ext+' %'], ['Emissivity', String(spec.Emiss)], ['Winter Median U-Value', String(spec.U)]];
-    specs.forEach(s=>{ y = ensureSpace(doc, y, 16, M, H); doc.setTextColor(110,110,110); doc.text(s[0], M, y); doc.setTextColor(20,20,20); doc.text(String(s[1]), M+320, y); y += 14; });
-    y += 6; doc.setDrawColor(229,231,235); doc.line(M,y,W-M,y); y += 12;
+    // Performance specs table (clean spacing)
+    doc.setFont('helvetica','bold'); doc.setFontSize(12);
+    doc.text('Performance Specs', M, y); y += 8;
+    doc.setFont('helvetica',''); doc.setFontSize(11);
+
+    const specsArr = [
+      ['Visible Light Transmission', spec.VLT+' %'],
+      ['Total Solar Energy Rejected (TSER)', spec.TSER+' %'],
+      ['Solar Heat Gain Coefficient (SHGC)', String(spec.SHGC)],
+      ['Shading Coefficient', String(spec.SC)],
+      ['UV Rejected', '>'+spec.UV+' %'],
+      ['Glare Reduction', spec.Glare+' %'],
+      ['Interior Reflectance', spec.VLR_Int+' %'],
+      ['Exterior Reflectance', spec.VLR_Ext+' %'],
+      ['Emissivity', String(spec.Emiss)],
+      ['Winter Median U-Value', String(spec.U)]
+    ];
+
+    const colGap = 16;
+    const colW = Math.floor((SAFE_WIDTH - colGap)/2);
+    const labelW = colW - 90; // leave room for value
+    const rowH = 18;
+
+    // compute total rows height and paginate if needed
+    const rows = Math.ceil(specsArr.length/2);
+    const needed = rows * rowH + 6;
+    y = ensureSpace(doc, y, needed, M, H);
+
+    for (let i=0; i<rows; i++) {
+      const left = specsArr[i];
+      const right = specsArr[i+rows];
+      // left col
+      if (left) {
+        doc.setTextColor(110,110,110);
+        doc.text(doc.splitTextToSize(left[0], labelW), M, y);
+        doc.setTextColor(20,20,20); doc.setFont('helvetica','bold');
+        doc.text(String(left[1]), M + labelW + 6, y, {maxWidth: 80});
+        doc.setFont('helvetica',''); doc.setTextColor(30,30,30);
+      }
+      // right col
+      if (right) {
+        const x = M + colW + colGap;
+        doc.setTextColor(110,110,110);
+        doc.text(doc.splitTextToSize(right[0], labelW), x, y);
+        doc.setTextColor(20,20,20); doc.setFont('helvetica','bold');
+        doc.text(String(right[1]), x + labelW + 6, y, {maxWidth: 80});
+        doc.setFont('helvetica',''); doc.setTextColor(30,30,30);
+      }
+      y += rowH;
+    }
+    y += SECTION_GAP;
+    doc.setDrawColor(229,231,235); doc.line(M,y,W-M,y); y += SECTION_GAP;
 
     // QR (optional)
     const url = document.getElementById('brandURL').value || '';

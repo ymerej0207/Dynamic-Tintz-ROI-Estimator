@@ -48,7 +48,7 @@
       <div><b>Payback:</b> ${(annualSavings>0 ? paybackYears.toFixed(1) : "–")} yrs</div>
       <div><b>5-Year Net:</b> ${money0(fiveYearNet)}</div>
       <div class="divider"></div>
-      <div style="opacity:.85;">Estimates are directional. Final ROI depends on verified glass area, film specification, installation conditions, and actual utility rates.</div>
+      <div>Estimates are directional. Final ROI depends on verified glass area, film specification, installation conditions, and actual utility rates.</div>
     `;
   }
 

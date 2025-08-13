@@ -1,4 +1,4 @@
-const CACHE = "dt-roi-v2";
+const CACHE = "dt-roi-v3-white";
 const ASSETS = [
   "./",
   "./index.html",
